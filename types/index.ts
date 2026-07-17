@@ -32,6 +32,7 @@ export interface Classroom {
   blynk_auth_token: string;
   blynk_template_id: string;
   next_available_pin: number;
+  states?: SwitchStateMap;
   createdAt: Timestamp;
 }
 

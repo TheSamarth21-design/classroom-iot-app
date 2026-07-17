@@ -14,7 +14,7 @@ import {
 import { router, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { Colors, Spacing, Typography, Radius } from '../../constants/theme';
+import { Colors, Spacing, Typography, Radius, Shadow } from '../../constants/theme';
 
 export default function RegisterScreen() {
   const { signUp } = useAuth();
@@ -23,6 +23,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [focusedInput, setFocusedInput] = useState<'name' | 'email' | 'password' | null>(null);
 
   const handleRegister = async () => {
     if (!name.trim() || !email.trim() || !password.trim()) {
@@ -56,30 +57,40 @@ export default function RegisterScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.logoBox}>
-            <Ionicons name="school-outline" size={36} color={Colors.primary} />
-          </View>
-          <Text style={styles.title}>Join ClassControl</Text>
-          <Text style={styles.subtitle}>Create your account to get started</Text>
+          <Text style={styles.splashTitle}>
+            Create your {'\n'}
+            <Text style={styles.greenText}>Account</Text>
+          </Text>
+          <Text style={styles.splashSubtitle}>
+            Join ClassControl to manage smart classrooms and save energy.
+          </Text>
         </View>
 
         {/* Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Create Account</Text>
-
+        <View style={styles.formContainer}>
           {/* Note about roles */}
           <View style={styles.infoBox}>
-            <Ionicons name="information-circle-outline" size={16} color={Colors.primary} />
+            <Ionicons name="information-circle-outline" size={16} color={Colors.primary} style={styles.infoIcon} />
             <Text style={styles.infoText}>
-              New accounts are created as Standard User. Contact your admin to be upgraded.
+              New accounts are created with standard read-and-toggle access. Contact your administrator to be promoted to teacher/admin.
             </Text>
           </View>
 
           {/* Name */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Full Name</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="person-outline" size={18} color={Colors.textSecondary} style={styles.inputIcon} />
+            <View
+              style={[
+                styles.inputWrapper,
+                focusedInput === 'name' && styles.inputWrapperFocused,
+              ]}
+            >
+              <Ionicons
+                name="person-outline"
+                size={18}
+                color={focusedInput === 'name' ? Colors.primary : Colors.textSecondary}
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="John Doe"
@@ -87,24 +98,38 @@ export default function RegisterScreen() {
                 value={name}
                 onChangeText={setName}
                 autoCapitalize="words"
+                onFocus={() => setFocusedInput('name')}
+                onBlur={() => setFocusedInput(null)}
               />
             </View>
           </View>
 
           {/* Email */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="mail-outline" size={18} color={Colors.textSecondary} style={styles.inputIcon} />
+            <Text style={styles.label}>Email Address</Text>
+            <View
+              style={[
+                styles.inputWrapper,
+                focusedInput === 'email' && styles.inputWrapperFocused,
+              ]}
+            >
+              <Ionicons
+                name="mail-outline"
+                size={18}
+                color={focusedInput === 'email' ? Colors.primary : Colors.textSecondary}
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={styles.input}
-                placeholder="your@email.com"
+                placeholder="teacher@school.com"
                 placeholderTextColor={Colors.textMuted}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                onFocus={() => setFocusedInput('email')}
+                onBlur={() => setFocusedInput(null)}
               />
             </View>
           </View>
@@ -112,16 +137,28 @@ export default function RegisterScreen() {
           {/* Password */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Password</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="lock-closed-outline" size={18} color={Colors.textSecondary} style={styles.inputIcon} />
+            <View
+              style={[
+                styles.inputWrapper,
+                focusedInput === 'password' && styles.inputWrapperFocused,
+              ]}
+            >
+              <Ionicons
+                name="lock-closed-outline"
+                size={18}
+                color={focusedInput === 'password' ? Colors.primary : Colors.textSecondary}
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={[styles.input, { flex: 1 }]}
-                placeholder="Min. 6 characters"
+                placeholder="At least 6 characters"
                 placeholderTextColor={Colors.textMuted}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
+                onFocus={() => setFocusedInput('password')}
+                onBlur={() => setFocusedInput(null)}
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
                 <Ionicons
@@ -143,14 +180,16 @@ export default function RegisterScreen() {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <>
-                <Text style={styles.buttonText}>Create Account</Text>
-                <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
-              </>
+              <View style={styles.btnContent}>
+                <Text style={styles.buttonText}>Register Account</Text>
+                <View style={styles.btnCircleArrow}>
+                  <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
+                </View>
+              </View>
             )}
           </TouchableOpacity>
 
-          {/* Login Link */}
+          {/* Footer */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>Already have an account? </Text>
             <Link href="/(auth)/login" asChild>
@@ -165,71 +204,60 @@ export default function RegisterScreen() {
   );
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#FFFFFF',
   },
   scroll: {
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.xxxl,
+    paddingVertical: Spacing.xxl,
   },
   header: {
-    alignItems: 'center',
-    marginBottom: Spacing.xxl,
+    alignItems: 'flex-start',
+    marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.sm,
   },
-  logoBox: {
-    width: 72,
-    height: 72,
-    borderRadius: Radius.xl,
-    backgroundColor: Colors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  title: {
-    fontSize: Typography.xxxl,
-    fontWeight: Typography.extrabold,
-    color: Colors.textPrimary,
+  splashTitle: {
+    fontSize: 28,
+    fontWeight: Typography.bold,
+    color: '#0F2231',
+    lineHeight: 36,
     letterSpacing: -0.5,
   },
-  subtitle: {
-    fontSize: Typography.sm,
+  greenText: {
+    color: Colors.primary,
+  },
+  splashSubtitle: {
+    fontSize: Typography.md,
     color: Colors.textSecondary,
-    marginTop: Spacing.xs,
-    textAlign: 'center',
+    marginTop: Spacing.md,
+    lineHeight: 22,
   },
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.xxl,
-    padding: Spacing.xl,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-  cardTitle: {
-    fontSize: Typography.xl,
-    fontWeight: Typography.bold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.md,
+  formContainer: {
+    width: '100%',
   },
   infoBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: Spacing.xs,
+    gap: Spacing.sm,
     backgroundColor: Colors.primaryLight,
     borderRadius: Radius.md,
     padding: Spacing.md,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(43, 182, 115, 0.15)',
+  },
+  infoIcon: {
+    marginTop: 1,
   },
   infoText: {
     flex: 1,
-    fontSize: Typography.xs,
+    fontSize: Typography.xs + 1,
     color: Colors.textSecondary,
     lineHeight: 18,
   },
@@ -239,18 +267,22 @@ const styles = StyleSheet.create({
   label: {
     fontSize: Typography.sm,
     fontWeight: Typography.medium,
-    color: Colors.textSecondary,
+    color: '#0F2231',
     marginBottom: Spacing.sm,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface2,
+    backgroundColor: '#F8FAFC',
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: '#E2E8F0',
     paddingHorizontal: Spacing.md,
-    height: 50,
+    height: 52,
+  },
+  inputWrapperFocused: {
+    borderColor: Colors.primary,
+    backgroundColor: '#FFFFFF',
   },
   inputIcon: {
     marginRight: Spacing.sm,
@@ -264,22 +296,35 @@ const styles = StyleSheet.create({
     padding: Spacing.xs,
   },
   button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
     backgroundColor: Colors.primary,
-    borderRadius: Radius.md,
-    height: 52,
+    borderRadius: Radius.full,
+    height: 54,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xl,
     marginTop: Spacing.md,
+    ...Shadow.primary,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
+  btnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
   buttonText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: Typography.md,
-    fontWeight: Typography.semibold,
+    fontWeight: Typography.bold,
+  },
+  btnCircleArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   footer: {
     flexDirection: 'row',
@@ -293,6 +338,6 @@ const styles = StyleSheet.create({
   footerLink: {
     color: Colors.primary,
     fontSize: Typography.sm,
-    fontWeight: Typography.semibold,
+    fontWeight: Typography.bold,
   },
 });

@@ -3,6 +3,7 @@ import React, {
   useContext,
   useEffect,
   useState,
+  useRef,
   ReactNode,
 } from 'react';
 import {
@@ -13,7 +14,7 @@ import {
   updateProfile,
   User,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, serverTimestamp, Unsubscribe } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { AppUser, AuthContextType } from '../types';
 
@@ -22,31 +23,46 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const userDocUnsubRef = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: User | null) => {
+      // Clean up any previous user document listener
+      if (userDocUnsubRef.current) {
+        userDocUnsubRef.current();
+        userDocUnsubRef.current = null;
+      }
+
       if (firebaseUser) {
-        // Fetch the user's role from Firestore
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          setUser({ uid: firebaseUser.uid, ...userDoc.data() } as AppUser);
-        } else {
-          // Fallback if Cloud Function hasn't run yet
-          setUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email ?? '',
-            displayName: firebaseUser.displayName ?? '',
-            role: 'user',
-            createdAt: null as any,
-          });
-        }
+        // Real-time listener on the user's Firestore document for instant role updates
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        userDocUnsubRef.current = onSnapshot(userDocRef, (snap) => {
+          if (snap.exists()) {
+            setUser({ uid: firebaseUser.uid, ...snap.data() } as AppUser);
+          } else {
+            // Fallback if Cloud Function hasn't run yet
+            setUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email ?? '',
+              displayName: firebaseUser.displayName ?? '',
+              role: 'user',
+              createdAt: null as any,
+            });
+          }
+          setLoading(false);
+        });
       } else {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      if (userDocUnsubRef.current) {
+        userDocUnsubRef.current();
+      }
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {

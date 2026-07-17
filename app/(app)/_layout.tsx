@@ -5,6 +5,7 @@ export default function AppLayout() {
     <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="classroom/[id]" />
+      <Stack.Screen name="manage-admins" />
     </Stack>
   );
 }

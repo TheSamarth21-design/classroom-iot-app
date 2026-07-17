@@ -10,6 +10,8 @@ import {
   increment,
   serverTimestamp,
   Unsubscribe,
+  getDocs,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Classroom, ApplianceSwitch } from '../types';
@@ -66,7 +68,7 @@ export async function addSwitch(
   const classroomRef = doc(db, 'Classrooms', classroomId);
 
   // Add the switch document
-  await addDoc(switchesRef, {
+  const docRef = await addDoc(switchesRef, {
     label,
     icon,
     virtual_pin: virtualPin,
@@ -75,9 +77,10 @@ export async function addSwitch(
     createdAt: serverTimestamp(),
   });
 
-  // Atomically increment the pin counter
+  // Atomically increment the pin counter and initialize the state in classroom states map using switch document ID
   await updateDoc(classroomRef, {
     next_available_pin: increment(1),
+    [`states.${docRef.id}`]: 0,
   });
 }
 
@@ -102,4 +105,84 @@ export async function updateSwitch(
 ): Promise<void> {
   const ref = doc(db, 'Classrooms', classroomId, 'switches', switchId);
   await updateDoc(ref, updates);
+}
+
+/**
+ * Updates a switch's real-time state in the classroom document using switch ID.
+ */
+export async function updateSwitchState(
+  classroomId: string,
+  switchId: string,
+  newValue: 0 | 1
+): Promise<void> {
+  const ref = doc(db, 'Classrooms', classroomId);
+  await updateDoc(ref, {
+    [`states.${switchId}`]: newValue,
+  });
+}
+
+/**
+ * Creates a new classroom and populates it with initial switches dynamically.
+ */
+export async function createClassroom(
+  name: string,
+  blynkAuthToken: string,
+  blynkTemplateId: string,
+  initialSwitches: { label: string; icon: string; virtual_pin: string; order: number }[]
+): Promise<void> {
+  const classroomRef = collection(db, 'Classrooms');
+  
+  // 1. Create the parent Classroom doc
+  const docRef = await addDoc(classroomRef, {
+    name,
+    blynk_auth_token: blynkAuthToken,
+    blynk_template_id: blynkTemplateId,
+    next_available_pin: initialSwitches.length + 1,
+    states: {},
+    createdAt: serverTimestamp(),
+  });
+
+  if (initialSwitches.length > 0) {
+    const switchesRef = collection(db, 'Classrooms', docRef.id, 'switches');
+    const batch = writeBatch(db);
+    const statesObj: Record<string, number> = {};
+
+    // 2. Add each switch document and map its ID to states map
+    for (const sw of initialSwitches) {
+      const swDocRef = doc(switchesRef);
+      batch.set(swDocRef, {
+        label: sw.label,
+        icon: sw.icon,
+        virtual_pin: sw.virtual_pin,
+        isDeleted: false,
+        order: sw.order,
+        createdAt: serverTimestamp(),
+      });
+      statesObj[`states.${swDocRef.id}`] = 0;
+    }
+
+    // 3. Update parent doc states map
+    batch.update(doc(db, 'Classrooms', docRef.id), statesObj);
+    await batch.commit();
+  }
+}
+
+/**
+ * Deletes a classroom and all of its switches subcollection documents atomically.
+ */
+export async function deleteClassroom(classroomId: string): Promise<void> {
+  const switchesRef = collection(db, 'Classrooms', classroomId, 'switches');
+  const snap = await getDocs(switchesRef);
+  
+  const batch = writeBatch(db);
+  
+  // Delete all switches in the subcollection
+  snap.forEach((d) => {
+    batch.delete(d.ref);
+  });
+  
+  // Delete parent classroom doc
+  batch.delete(doc(db, 'Classrooms', classroomId));
+  
+  await batch.commit();
 }

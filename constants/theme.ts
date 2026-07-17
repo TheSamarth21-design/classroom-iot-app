@@ -1,40 +1,41 @@
 export const Colors = {
   // Backgrounds
-  background: '#0D0D14',
-  surface: '#1A1A2E',
-  surface2: '#252540',
-  surfaceHover: '#2E2E50',
+  background: '#F8FAFC',      // Clean off-white
+  surface: '#FFFFFF',         // Pure white for cards
+  surface2: '#E8F8EE',        // Mint green accent surface
+  surfaceDark: '#0F2231',     // Deep slate-blue for hero cards
+  surfaceHover: '#F1F5F9',
 
   // Brand
-  primary: '#6C63FF',
-  primaryLight: 'rgba(108, 99, 255, 0.15)',
-  primaryGlow: 'rgba(108, 99, 255, 0.3)',
+  primary: '#2BB673',         // Eco Forest Green
+  primaryLight: 'rgba(43, 182, 115, 0.1)',
+  primaryGlow: 'rgba(43, 182, 115, 0.25)',
 
   // States
-  active: '#6C63FF',
-  activeGlow: 'rgba(108, 99, 255, 0.4)',
-  inactive: '#2A2A45',
+  active: '#2BB673',
+  activeGlow: 'rgba(43, 182, 115, 0.35)',
+  inactive: '#F1F5F9',        // Soft light grey
 
   // Accents
-  success: '#4ECDC4',
-  successLight: 'rgba(78, 205, 196, 0.15)',
-  error: '#FF6B6B',
-  errorLight: 'rgba(255, 107, 107, 0.15)',
-  warning: '#FFD93D',
+  success: '#2BB673',         // Forest Green
+  successLight: 'rgba(43, 182, 115, 0.15)',
+  error: '#FF4D4D',           // Vibrant Red
+  errorLight: 'rgba(255, 77, 77, 0.12)',
+  warning: '#FFB800',         // Amber Yellow
 
   // Text
-  textPrimary: '#FFFFFF',
-  textSecondary: '#8888BB',
-  textMuted: '#555580',
-  textInverse: '#0D0D14',
+  textPrimary: '#0F172A',     // Deep Slate Grey
+  textSecondary: '#64748B',   // Cool Slate
+  textMuted: '#94A3B8',       // Light Slate Muted
+  textInverse: '#FFFFFF',
 
   // Borders
-  border: 'rgba(108, 99, 255, 0.15)',
-  borderLight: 'rgba(255, 255, 255, 0.06)',
+  border: '#E2E8F0',          // Soft slate border
+  borderActive: '#2BB673',
 
   // Overlay
-  overlay: 'rgba(0, 0, 0, 0.6)',
-  modalBg: 'rgba(13, 13, 20, 0.95)',
+  overlay: 'rgba(15, 23, 42, 0.4)',
+  modalBg: '#FFFFFF',
 };
 
 export const Spacing = {
@@ -50,9 +51,9 @@ export const Spacing = {
 export const Radius = {
   sm: 8,
   md: 12,
-  lg: 16,
-  xl: 20,
-  xxl: 28,
+  lg: 18,                     // Softer, iOS-like rounded corners
+  xl: 24,
+  xxl: 32,
   full: 9999,
 };
 
@@ -77,31 +78,31 @@ export const Typography = {
 
 export const Shadow = {
   sm: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   md: {
-    shadowColor: '#000',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   lg: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 8,
   },
   primary: {
-    shadowColor: '#6C63FF',
+    shadowColor: '#2BB673',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.2,
     shadowRadius: 12,
-    elevation: 8,
+    elevation: 6,
   },
 };

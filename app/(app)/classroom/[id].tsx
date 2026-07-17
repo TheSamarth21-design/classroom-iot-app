@@ -19,8 +19,7 @@ import { useSwitches } from '../../../hooks/useSwitches';
 import { useClassroom } from '../../../hooks/useClassroom';
 import { useAuth } from '../../../contexts/AuthContext';
 import { togglePin } from '../../../services/blynkService';
-import { addSwitch, softDeleteSwitch, updateSwitch } from '../../../services/firestoreService';
-import { auth, functions } from '../../../services/firebase';
+import { addSwitch, softDeleteSwitch, updateSwitch, updateSwitchState } from '../../../services/firestoreService';
 import { Colors, Spacing, Typography, Radius, Shadow } from '../../../constants/theme';
 import { ApplianceIcons, ApplianceOptions } from '../../../constants/icons';
 import { ApplianceSwitch } from '../../../types';
@@ -41,11 +40,11 @@ function SwitchCard({ sw, isOn, isAdmin, onToggle, onEdit, onDelete }: SwitchCar
 
   return (
     <View style={[styles.switchCard, isOn && styles.switchCardActive]}>
-      {/* Admin actions */}
+      {/* Admin Actions Row */}
       {isAdmin && (
         <View style={styles.adminActions}>
           <TouchableOpacity onPress={() => onEdit(sw)} style={styles.actionBtn}>
-            <Ionicons name="pencil-outline" size={13} color={Colors.textSecondary} />
+            <Ionicons name="create-outline" size={13} color={Colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => onDelete(sw)} style={styles.actionBtn}>
             <Ionicons name="trash-outline" size={13} color={Colors.error} />
@@ -53,37 +52,27 @@ function SwitchCard({ sw, isOn, isAdmin, onToggle, onEdit, onDelete }: SwitchCar
         </View>
       )}
 
-      {/* Icon */}
-      <View style={[styles.switchIconBox, isOn && styles.switchIconBoxActive]}>
-        <Ionicons
-          name={iconName as any}
-          size={28}
-          color={isOn ? Colors.primary : Colors.textSecondary}
-        />
-        {isOn && <View style={styles.iconGlow} />}
-      </View>
-
-      {/* Label */}
-      <Text style={[styles.switchLabel, isOn && styles.switchLabelActive]} numberOfLines={2}>
-        {sw.label}
-      </Text>
-      <Text style={styles.switchPin}>{sw.virtual_pin}</Text>
-
-      {/* Toggle */}
+      {/* Circle Icon Switch - Styled like Dials in reference template */}
       <TouchableOpacity
-        style={[styles.toggleBtn, isOn && styles.toggleBtnActive]}
+        style={[styles.switchCircle, isOn && styles.switchCircleActive]}
         onPress={() => onToggle(sw, isOn ? 0 : 1)}
-        activeOpacity={0.75}
+        activeOpacity={0.8}
       >
         <Ionicons
-          name={isOn ? 'power' : 'power-outline'}
-          size={18}
-          color={isOn ? '#fff' : Colors.textSecondary}
+          name={iconName as any}
+          size={26}
+          color={isOn ? '#FFFFFF' : Colors.primary}
         />
-        <Text style={[styles.toggleBtnText, isOn && styles.toggleBtnTextActive]}>
-          {isOn ? 'ON' : 'OFF'}
-        </Text>
       </TouchableOpacity>
+
+      {/* Label and State information */}
+      <Text style={styles.switchLabel} numberOfLines={1}>
+        {sw.label}
+      </Text>
+      <Text style={[styles.switchStatusText, isOn && styles.switchStatusTextActive]}>
+        {isOn ? 'Active' : 'Inactive'}
+      </Text>
+      <Text style={styles.switchPin}>{sw.virtual_pin}</Text>
     </View>
   );
 }
@@ -97,7 +86,7 @@ export default function ClassroomScreen() {
   const { classroom, loading: classroomLoading } = useClassroom(id);
   const blynkToken = classroom?.blynk_auth_token || '';
 
-  const { switches, states, loading: switchesLoading, setLocalState } = useSwitches(id, blynkToken);
+  const { switches, states, loading: switchesLoading, setLocalState } = useSwitches(id, blynkToken, classroom?.states);
   const loading = classroomLoading || switchesLoading;
 
   // ── Add Switch Modal State ──
@@ -113,23 +102,38 @@ export default function ClassroomScreen() {
   // ── Toggle Handler ──
   const handleToggle = useCallback(
     async (sw: ApplianceSwitch, newValue: 0 | 1) => {
-      // Optimistic update
-      setLocalState(sw.virtual_pin, newValue);
+      const originalValue = newValue === 1 ? 0 : 1;
+
+      // Optimistic update using switch ID
+      setLocalState(sw.id, newValue);
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-      // Fire & forget to Blynk
-      const success = await togglePin(blynkToken, sw.virtual_pin, newValue);
-      if (!success) {
-        // Revert on failure
-        setLocalState(sw.virtual_pin, newValue === 1 ? 0 : 1);
+      try {
+        // Update Firestore and Blynk in parallel
+        const firestorePromise = updateSwitchState(id, sw.id, newValue);
+        const blynkPromise = togglePin(blynkToken, sw.virtual_pin, newValue);
+
+        const [_, blynkSuccess] = await Promise.all([firestorePromise, blynkPromise]);
+
+        if (!blynkSuccess) {
+          throw new Error('Blynk update failed');
+        }
+      } catch (err) {
+        // Revert local and Firestore state on error
+        setLocalState(sw.id, originalValue);
+        await updateSwitchState(id, sw.id, originalValue).catch(console.error);
         Alert.alert('Connection Error', 'Could not reach the device. Check your network.');
       }
     },
-    [blynkToken, setLocalState]
+    [id, blynkToken, setLocalState]
   );
 
   // ── Add Switch Handler ──
   const handleAddSwitch = async () => {
+    if (!isAdmin) {
+      Alert.alert('Unauthorized', 'Only admins can add appliances.');
+      return;
+    }
     if (!newLabel.trim()) {
       Alert.alert('Missing Label', 'Please enter a name for this appliance.');
       return;
@@ -143,13 +147,10 @@ export default function ClassroomScreen() {
         throw new Error('Blynk template ID is missing from this classroom record.');
       }
 
-      const templateId = classroom.blynk_template_id;
       const nextPinNumber = classroom.next_available_pin || 1;
-
-      // Calculate the virtual pin directly based on next_available_pin
       const virtualPin = `V${nextPinNumber}`;
       
-      // 2. Save switch metadata to Firestore
+      // Save switch metadata to Firestore
       await addSwitch(id, newLabel.trim(), newIcon, virtualPin, switches.length + 1);
 
       setNewLabel('');
@@ -164,6 +165,10 @@ export default function ClassroomScreen() {
 
   // ── Edit Switch Handler ──
   const handleEditSwitch = async () => {
+    if (!isAdmin) {
+      Alert.alert('Unauthorized', 'Only admins can edit appliances.');
+      return;
+    }
     if (!editModal || !editLabel.trim()) return;
     try {
       await updateSwitch(id, editModal.id, { label: editLabel.trim() });
@@ -175,6 +180,10 @@ export default function ClassroomScreen() {
 
   // ── Delete Handler ──
   const handleDelete = (sw: ApplianceSwitch) => {
+    if (!isAdmin) {
+      Alert.alert('Unauthorized', 'Only admins can remove appliances.');
+      return;
+    }
     Alert.alert(
       'Remove Switch',
       `Remove "${sw.label}" from this classroom? The pin will stay reserved.`,
@@ -189,6 +198,8 @@ export default function ClassroomScreen() {
     );
   };
 
+  const activeCount = Object.values(states).filter((v) => v === 1).length;
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -198,7 +209,9 @@ export default function ClassroomScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>{name ?? id}</Text>
-          <Text style={styles.headerSub}>{switches.length} appliances</Text>
+          <Text style={styles.headerSub}>
+            {switches.length} appliances • {activeCount} active
+          </Text>
         </View>
         {isAdmin && (
           <TouchableOpacity
@@ -230,7 +243,7 @@ export default function ClassroomScreen() {
           renderItem={({ item }) => (
             <SwitchCard
               sw={item}
-              isOn={states[item.virtual_pin] === 1}
+              isOn={states[item.id] === 1}
               isAdmin={isAdmin}
               onToggle={handleToggle}
               onEdit={(sw) => {
@@ -289,10 +302,12 @@ export default function ClassroomScreen() {
                     size={22}
                     color={newIcon === opt.value ? Colors.primary : Colors.textSecondary}
                   />
-                  <Text style={[
-                    styles.iconOptionLabel,
-                    newIcon === opt.value && styles.iconOptionLabelSelected,
-                  ]}>
+                  <Text
+                    style={[
+                      styles.iconOptionText,
+                      newIcon === opt.value && styles.iconOptionTextSelected,
+                    ]}
+                  >
                     {opt.label}
                   </Text>
                 </TouchableOpacity>
@@ -300,14 +315,14 @@ export default function ClassroomScreen() {
             </ScrollView>
 
             <TouchableOpacity
-              style={[styles.modalBtn, addLoading && styles.modalBtnDisabled]}
+              style={[styles.modalSubmitBtn, addLoading && styles.btnDisabled]}
               onPress={handleAddSwitch}
               disabled={addLoading}
             >
               {addLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.modalBtnText}>Add Appliance</Text>
+                <Text style={styles.modalSubmitBtnText}>Add Switch</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -316,7 +331,7 @@ export default function ClassroomScreen() {
 
       {/* ── Edit Switch Modal ── */}
       <Modal
-        visible={!!editModal}
+        visible={editModal !== null}
         transparent
         animationType="slide"
         onRequestClose={() => setEditModal(null)}
@@ -324,7 +339,7 @@ export default function ClassroomScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Appliance</Text>
+              <Text style={styles.modalTitle}>Edit Appliance Label</Text>
               <TouchableOpacity onPress={() => setEditModal(null)}>
                 <Ionicons name="close" size={22} color={Colors.textSecondary} />
               </TouchableOpacity>
@@ -333,14 +348,15 @@ export default function ClassroomScreen() {
             <Text style={styles.modalLabel}>Appliance Name</Text>
             <TextInput
               style={styles.modalInput}
+              placeholder="e.g. Projector Screen..."
+              placeholderTextColor={Colors.textMuted}
               value={editLabel}
               onChangeText={setEditLabel}
-              placeholderTextColor={Colors.textMuted}
               autoFocus
             />
 
-            <TouchableOpacity style={styles.modalBtn} onPress={handleEditSwitch}>
-              <Text style={styles.modalBtnText}>Save Changes</Text>
+            <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleEditSwitch}>
+              <Text style={styles.modalSubmitBtnText}>Save changes</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -349,49 +365,142 @@ export default function ClassroomScreen() {
   );
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.lg,
-    gap: Spacing.sm,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    gap: Spacing.md,
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.full,
+    width: 38,
+    height: 38,
+    borderRadius: Radius.md,
     backgroundColor: Colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: Colors.border,
   },
-  headerCenter: { flex: 1 },
+  headerCenter: {
+    flex: 1,
+  },
   headerTitle: {
-    fontSize: Typography.lg,
+    fontSize: Typography.xl,
     fontWeight: Typography.bold,
     color: Colors.textPrimary,
   },
-  headerSub: { fontSize: Typography.xs, color: Colors.textMuted },
+  headerSub: {
+    fontSize: Typography.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
   addBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.full,
+    width: 38,
+    height: 38,
+    borderRadius: Radius.md,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     ...Shadow.primary,
   },
-  grid: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxl },
-  row: { gap: Spacing.md, marginBottom: Spacing.md },
+
+  // ── Switch Grid Styles ──
+  grid: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xxl,
+  },
+  row: {
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  switchCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.sm,
+  },
+  switchCardActive: {
+    borderColor: 'rgba(43, 182, 115, 0.25)',
+  },
+  adminActions: {
+    flexDirection: 'row',
+    alignSelf: 'stretch',
+    justifyContent: 'flex-end',
+    gap: Spacing.xs,
+    marginBottom: -6,
+    marginTop: -Spacing.sm,
+  },
+  actionBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: Radius.sm,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  // Circular Device Button (Matches template's device circles)
+  switchCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.surface2, // Soft pastel green
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+    marginTop: Spacing.xs,
+    borderWidth: 1,
+    borderColor: 'rgba(43, 182, 115, 0.15)',
+  },
+  switchCircleActive: {
+    backgroundColor: Colors.primary, // Glowing forest green
+    borderColor: Colors.primary,
+    ...Shadow.primary,
+  },
+  switchLabel: {
+    fontSize: Typography.md,
+    fontWeight: Typography.bold,
+    color: '#0F2231', // Deep slate-blue
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  switchStatusText: {
+    fontSize: Typography.xs,
+    color: Colors.textSecondary,
+    fontWeight: Typography.medium,
+    marginBottom: 2,
+  },
+  switchStatusTextActive: {
+    color: Colors.primary,
+    fontWeight: Typography.semibold,
+  },
+  switchPin: {
+    fontSize: 10,
+    color: Colors.textMuted,
+  },
+
+  // ── Status/Loading Indicators ──
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     gap: Spacing.md,
-    paddingHorizontal: Spacing.xxl,
   },
   emptyTitle: {
     fontSize: Typography.lg,
@@ -402,165 +511,100 @@ const styles = StyleSheet.create({
     fontSize: Typography.sm,
     color: Colors.textMuted,
     textAlign: 'center',
+    paddingHorizontal: Spacing.xl,
   },
 
-  // Switch Cards
-  switchCard: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.xl,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    minHeight: 170,
-    ...Shadow.md,
-  },
-  switchCardActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.surface2,
-  },
-  adminActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: Spacing.xs,
-    marginBottom: Spacing.xs,
-  },
-  actionBtn: {
-    padding: 4,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.surface2,
-  },
-  switchIconBox: {
-    width: 52,
-    height: 52,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.inactive,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-    position: 'relative',
-  },
-  switchIconBoxActive: {
-    backgroundColor: Colors.primaryLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  iconGlow: {
-    position: 'absolute',
-    inset: -4,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.activeGlow,
-  },
-  switchLabel: {
-    fontSize: Typography.sm,
-    fontWeight: Typography.semibold,
-    color: Colors.textSecondary,
-    marginBottom: 2,
-  },
-  switchLabelActive: { color: Colors.textPrimary },
-  switchPin: {
-    fontSize: Typography.xs,
-    color: Colors.textMuted,
-    marginBottom: Spacing.sm,
-  },
-  toggleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    backgroundColor: Colors.inactive,
-    borderRadius: Radius.md,
-    paddingVertical: Spacing.sm,
-  },
-  toggleBtnActive: { backgroundColor: Colors.primary },
-  toggleBtnText: {
-    fontSize: Typography.xs,
-    fontWeight: Typography.bold,
-    color: Colors.textSecondary,
-  },
-  toggleBtnTextActive: { color: '#fff' },
-
-  // Modals
+  // ── Dialog Modals ──
   modalOverlay: {
     flex: 1,
     backgroundColor: Colors.overlay,
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
   },
   modalCard: {
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: Radius.xxl,
-    borderTopRightRadius: Radius.xxl,
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: Radius.lg,
     padding: Spacing.xl,
-    paddingBottom: Spacing.xxxl,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: Colors.border,
+    ...Shadow.lg,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingBottom: Spacing.sm,
   },
   modalTitle: {
     fontSize: Typography.lg,
     fontWeight: Typography.bold,
-    color: Colors.textPrimary,
+    color: '#0F2231',
   },
   modalLabel: {
     fontSize: Typography.sm,
     fontWeight: Typography.medium,
     color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   modalInput: {
-    backgroundColor: Colors.surface2,
-    borderRadius: Radius.md,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    paddingHorizontal: Spacing.lg,
-    height: 50,
+    borderColor: '#E2E8F0',
+    borderRadius: Radius.md,
     color: Colors.textPrimary,
     fontSize: Typography.md,
-    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    height: 48,
+    marginBottom: Spacing.md,
   },
   iconPicker: {
+    flexDirection: 'row',
     marginBottom: Spacing.xl,
   },
   iconOption: {
-    alignItems: 'center',
-    gap: 4,
-    padding: Spacing.sm,
-    paddingHorizontal: Spacing.md,
+    width: 68,
+    height: 68,
     borderRadius: Radius.md,
-    backgroundColor: Colors.surface2,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: '#E2E8F0',
   },
   iconOptionSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: Colors.surface2,
   },
-  iconOptionLabel: {
-    fontSize: Typography.xs,
+  iconOptionText: {
+    fontSize: 10,
     color: Colors.textMuted,
+    marginTop: 4,
+    textAlign: 'center',
   },
-  iconOptionLabelSelected: {
+  iconOptionTextSelected: {
     color: Colors.primary,
-    fontWeight: Typography.semibold,
   },
-  modalBtn: {
+  modalSubmitBtn: {
     backgroundColor: Colors.primary,
+    height: 48,
     borderRadius: Radius.md,
-    height: 52,
     justifyContent: 'center',
     alignItems: 'center',
     ...Shadow.primary,
   },
-  modalBtnDisabled: { opacity: 0.6 },
-  modalBtnText: {
+  modalSubmitBtnText: {
     color: '#fff',
     fontSize: Typography.md,
-    fontWeight: Typography.semibold,
+    fontWeight: Typography.bold,
+  },
+  btnDisabled: {
+    opacity: 0.6,
   },
 });
