@@ -14,6 +14,7 @@ import {
   ScrollView,
   Platform,
   KeyboardAvoidingView,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -241,13 +242,27 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Blurry background watermark logo */}
+      <Image
+        source={require('../../assets/logo.png')}
+        style={styles.blurryBgLogo}
+        blurRadius={20}
+        resizeMode="contain"
+      />
       {/* Header */}
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.greeting}>
-            Hello, {user?.displayName?.split(' ')[0] ?? 'there'} 👋
-          </Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Dashboard</Text>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
+          <View>
+            <Text style={styles.greeting}>
+              Hello, {user?.displayName?.split(' ')[0] ?? 'there'} 👋
+            </Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Dashboard</Text>
+          </View>
         </View>
         <View style={styles.headerRight}>
           {isAdmin && (
@@ -471,6 +486,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  blurryBgLogo: {
+    position: 'absolute',
+    top: '30%',
+    left: '10%',
+    width: '80%',
+    height: 300,
+    opacity: 0.03, // very light watermark for background
+    zIndex: -1,
+  },
+  headerLogo: {
+    width: 100,
+    height: 45,
   },
   header: {
     flexDirection: 'row',

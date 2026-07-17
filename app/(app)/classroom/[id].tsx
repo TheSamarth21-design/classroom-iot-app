@@ -11,6 +11,7 @@ import {
   TextInput,
   ActivityIndicator,
   ScrollView,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -202,6 +203,13 @@ export default function ClassroomScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Blurry background watermark logo */}
+      <Image
+        source={require('../../../assets/logo.png')}
+        style={styles.blurryBgLogo}
+        blurRadius={20}
+        resizeMode="contain"
+      />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
@@ -371,6 +379,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  blurryBgLogo: {
+    position: 'absolute',
+    top: '30%',
+    left: '10%',
+    width: '80%',
+    height: 300,
+    opacity: 0.03, // very light watermark for background
+    zIndex: -1,
   },
   header: {
     flexDirection: 'row',

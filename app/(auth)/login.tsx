@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Modal,
+  Image,
 } from 'react-native';
 import { router, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -178,11 +179,25 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <Image
+        source={require('../../assets/logo.png')}
+        style={styles.blurryBgLogo}
+        blurRadius={20}
+        resizeMode="contain"
+      />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.authLogo}
+            resizeMode="contain"
+          />
+        </View>
+
         {/* Splash Info Header */}
         <View style={styles.header}>
           <Text style={styles.splashTitle}>
@@ -416,6 +431,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF', // Clean white background matching splash template
+  },
+  blurryBgLogo: {
+    position: 'absolute',
+    top: '30%',
+    left: '10%',
+    width: '80%',
+    height: 300,
+    opacity: 0.04, // very light watermark
+    zIndex: -1,
+  },
+  logoContainer: {
+    alignItems: 'flex-start',
+    marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.sm,
+  },
+  authLogo: {
+    width: 200,
+    height: 80,
   },
   scroll: {
     flexGrow: 1,

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { Colors } from '../constants/theme';
 
@@ -20,6 +20,11 @@ function RootNavigator() {
   if (loading) {
     return (
       <View style={styles.loader}>
+        <Image
+          source={require('../assets/logo.png')}
+          style={styles.loadingLogo}
+          resizeMode="contain"
+        />
         <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
@@ -48,5 +53,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingLogo: {
+    width: 260,
+    height: 120,
+    marginBottom: 24,
   },
 });
